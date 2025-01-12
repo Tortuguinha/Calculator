@@ -4,13 +4,12 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import javax.script.ScriptEngine;
-import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
+import java.util.Stack;
 
 public class CalculatorUI extends JFrame {
 
     private JTextField display; // Campo de texto para exibir o cálculo
+    private boolean isResultDisplayed = false; // Flag para verificar se o resultado foi exibido
 
     public CalculatorUI() {
         setTitle("Calculadora");         // Título da janela
@@ -85,27 +84,91 @@ public class CalculatorUI extends JFrame {
             if ("C".equals(command)) {
                 // Limpa o display
                 display.setText("");
+                isResultDisplayed = false; // Reseta o estado
             } else if ("=".equals(command)) {
                 // Calcula o resultado da expressão completa
                 try {
                     String expression = display.getText(); // Obtém a expressão do display
                     double result = evaluateExpression(expression); // Avalia a expressão
                     display.setText(String.valueOf(result)); // Mostra o resultado
+                    isResultDisplayed = true; // Marca que o resultado foi exibido
                 } catch (Exception ex) {
                     display.setText("Erro");
+                    isResultDisplayed = false; // Erro, reseta o estado
                 }
             } else {
-                // Adiciona o texto do botão ao display
-                display.setText(display.getText() + command);
+                // Se o resultado foi exibido e o botão clicado é um número, limpa o display
+                if (isResultDisplayed && Character.isDigit(command.charAt(0))) {
+                    display.setText(command); // Começa um novo cálculo com o número clicado
+                    isResultDisplayed = false;
+                } else {
+                    // Caso contrário, adiciona o texto ao display
+                    display.setText(display.getText() + command);
+                    isResultDisplayed = false;
+                }
             }
         }
 
-        // Método para avaliar a expressão usando ScriptEngine
-        private double evaluateExpression(String expression) throws ScriptException {
-            ScriptEngineManager manager = new ScriptEngineManager();
-            ScriptEngine engine = manager.getEngineByName("JavaScript"); // Avaliador de expressões
-            Object result = engine.eval(expression); // Avalia a expressão
-            return Double.parseDouble(result.toString()); // Retorna o resultado como double
+        // Método para avaliar a expressão usando pilhas
+        private double evaluateExpression(String expression) throws Exception {
+            return evaluatePostfix(infixToPostfix(expression));
+        }
+
+        // Converte a expressão infixa para postfix (notação polonesa reversa)
+        private String infixToPostfix(String infix) {
+            StringBuilder postfix = new StringBuilder();
+            Stack<Character> stack = new Stack<>();
+
+            for (char c : infix.toCharArray()) {
+                if (Character.isDigit(c) || c == '.') {
+                    postfix.append(c);
+                } else if (c == '(') {
+                    stack.push(c);
+                } else if (c == ')') {
+                    while (!stack.isEmpty() && stack.peek() != '(') {
+                        postfix.append(' ').append(stack.pop());
+                    }
+                    stack.pop();
+                } else if ("+-*/".indexOf(c) >= 0) {
+                    postfix.append(' ');
+                    while (!stack.isEmpty() && precedence(stack.peek()) >= precedence(c)) {
+                        postfix.append(stack.pop()).append(' ');
+                    }
+                    stack.push(c);
+                }
+            }
+            while (!stack.isEmpty()) {
+                postfix.append(' ').append(stack.pop());
+            }
+            return postfix.toString();
+        }
+
+        // Avalia a expressão em postfix
+        private double evaluatePostfix(String postfix) {
+            Stack<Double> stack = new Stack<>();
+            for (String token : postfix.split("\\s")) {
+                if (token.isEmpty()) continue;
+                if ("+-*/".contains(token)) {
+                    double b = stack.pop();
+                    double a = stack.pop();
+                    switch (token.charAt(0)) {
+                        case '+': stack.push(a + b); break;
+                        case '-': stack.push(a - b); break;
+                        case '*': stack.push(a * b); break;
+                        case '/': stack.push(a / b); break;
+                    }
+                } else {
+                    stack.push(Double.parseDouble(token));
+                }
+            }
+            return stack.pop();
+        }
+
+        // Define a precedência dos operadores
+        private int precedence(char op) {
+            if (op == '+' || op == '-') return 1;
+            if (op == '*' || op == '/') return 2;
+            return 0;
         }
     }
 }
