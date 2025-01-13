@@ -7,21 +7,21 @@ import java.awt.event.ActionListener;
 
 public class CalculatorUI extends JFrame {
 
-    /**
-	 * 
-	 */
-	private static final long serialVersionUID = 1L;
-	private JTextField display; // Campo de texto para exibir o cálculo
+    private JTextField display; // Campo de texto para exibir o cálculo
     private final OperationHandler handler; // Classe separada para lógica das operações
+    private final DisplayManager displayManager; // Classe para gerenciar o display
 
     public CalculatorUI() {
         setTitle("Calculadora Científica");         // Título da janela
-        setSize(400, 500);                          // Dimensão da janela
+        setSize(400, 600);                          // Dimensão da janela ajustada
         setDefaultCloseOperation(EXIT_ON_CLOSE);   // Fecha o programa ao clicar no "X"
         setLayout(new BorderLayout());             // Layout principal
 
         // Inicializa o handler de operações
         handler = new OperationHandler();
+
+        // Inicializa o gerenciador de display
+        displayManager = new DisplayManager();
 
         // Campo de exibição (display)
         display = new JTextField();
@@ -34,15 +34,16 @@ public class CalculatorUI extends JFrame {
 
         // Painel de botões
         JPanel buttonPanel = new JPanel();
-        buttonPanel.setLayout(new GridLayout(5, 4, 5, 5)); // Grade 5x4 com espaçamento
+        buttonPanel.setLayout(new GridLayout(6, 4, 5, 5)); // Grade 6x4 com espaçamento
 
-        // Botões (incluindo exponenciação)
+        // Botões (incluindo botão de igual `=` e raiz quadrada `√`)
         String[] buttons = {
             "(", ")", "C", "/",
             "7", "8", "9", "*",
             "4", "5", "6", "-",
             "1", "2", "3", "+",
-            "0", ".", "^", "="
+            "0", ".", "^", "=",
+            "√" // Botão de raiz quadrada ocupa sua posição na última linha
         };
 
         for (String text : buttons) {
@@ -57,8 +58,10 @@ public class CalculatorUI extends JFrame {
     private JButton createButton(String text) {
         JButton button = new JButton(text);
         button.setFont(new Font("Arial", Font.BOLD, 20)); // Estilo da fonte
-        if (isOperator(text) || isParenthesis(text) || "^".equals(text)) {
-            button.setBackground(Color.ORANGE); // Operadores e parênteses em laranja
+        if (isOperator(text) || isParenthesis(text) || "^".equals(text) || "√".equals(text) || "=".equals(text)) {
+            button.setBackground(Color.ORANGE); // Operadores e especiais em laranja
+        } else if ("C".equals(text)) {
+            button.setBackground(Color.RED);    // Botão de limpar em vermelho
         } else {
             button.setBackground(Color.LIGHT_GRAY); // Outros botões em cinza claro
         }
@@ -71,7 +74,7 @@ public class CalculatorUI extends JFrame {
 
     // Verifica se o texto do botão é uma operação
     private boolean isOperator(String text) {
-        return "+-*/=^".contains(text);
+        return "+-*/^√=".contains(text);
     }
 
     // Verifica se o texto do botão é um parêntese
@@ -92,17 +95,26 @@ public class CalculatorUI extends JFrame {
             if ("C".equals(command)) {
                 // Limpa o display
                 display.setText("");
+                displayManager.setResultDisplayed(false);
             } else if ("=".equals(command)) {
                 // Calcula o resultado completo
                 try {
                     String result = handler.evaluate(display.getText());
                     display.setText(result);
+                    displayManager.setResultDisplayed(true); // Marca que o resultado foi exibido
                 } catch (Exception ex) {
                     display.setText("Erro");
+                    displayManager.setResultDisplayed(false);
                 }
             } else {
-                // Adiciona o comando ao display
-                display.setText(display.getText() + command);
+                // Atualiza o display usando o DisplayManager
+                boolean isOperator = isOperator(command);
+                String updatedDisplay = displayManager.handleInput(display.getText(), command, isOperator);
+                if ("√".equals(command)) {
+                    // Calcula a raiz quadrada
+                    updatedDisplay = handler.squareRoot(display.getText());
+                }
+                display.setText(updatedDisplay);
             }
         }
     }
