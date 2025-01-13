@@ -4,18 +4,24 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.Stack;
 
 public class CalculatorUI extends JFrame {
 
-    private JTextField display; // Campo de texto para exibir o cálculo
-    private boolean isResultDisplayed = false; // Flag para verificar se o resultado foi exibido
+    /**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+	private JTextField display; // Campo de texto para exibir o cálculo
+    private final OperationHandler handler; // Classe separada para lógica das operações
 
     public CalculatorUI() {
-        setTitle("Calculadora");         // Título da janela
-        setSize(350, 450);               // Dimensão da janela
-        setDefaultCloseOperation(EXIT_ON_CLOSE); // Fecha o programa ao clicar no "X"
-        setLayout(new BorderLayout());   // Layout principal
+        setTitle("Calculadora Científica");         // Título da janela
+        setSize(400, 500);                          // Dimensão da janela
+        setDefaultCloseOperation(EXIT_ON_CLOSE);   // Fecha o programa ao clicar no "X"
+        setLayout(new BorderLayout());             // Layout principal
+
+        // Inicializa o handler de operações
+        handler = new OperationHandler();
 
         // Campo de exibição (display)
         display = new JTextField();
@@ -30,13 +36,13 @@ public class CalculatorUI extends JFrame {
         JPanel buttonPanel = new JPanel();
         buttonPanel.setLayout(new GridLayout(5, 4, 5, 5)); // Grade 5x4 com espaçamento
 
-        // Botões (incluindo parênteses)
+        // Botões (incluindo exponenciação)
         String[] buttons = {
             "(", ")", "C", "/",
             "7", "8", "9", "*",
             "4", "5", "6", "-",
             "1", "2", "3", "+",
-            "0", ".", "=", ""
+            "0", ".", "^", "="
         };
 
         for (String text : buttons) {
@@ -51,23 +57,21 @@ public class CalculatorUI extends JFrame {
     private JButton createButton(String text) {
         JButton button = new JButton(text);
         button.setFont(new Font("Arial", Font.BOLD, 20)); // Estilo da fonte
-        if (text.isEmpty()) {
-            button.setEnabled(false); // Botão vazio (apenas espaço)
-        } else if (isOperator(text) || isParenthesis(text)) {
+        if (isOperator(text) || isParenthesis(text) || "^".equals(text)) {
             button.setBackground(Color.ORANGE); // Operadores e parênteses em laranja
         } else {
             button.setBackground(Color.LIGHT_GRAY); // Outros botões em cinza claro
         }
 
         // Adiciona funcionalidade ao botão
-        button.addActionListener(new ButtonClickListener());
+        button.addActionListener(new ButtonClickListener(text));
         button.setFocusPainted(false); // Remove o destaque ao clicar
         return button;
     }
 
     // Verifica se o texto do botão é uma operação
     private boolean isOperator(String text) {
-        return "+-*/=".contains(text);
+        return "+-*/=^".contains(text);
     }
 
     // Verifica se o texto do botão é um parêntese
@@ -77,98 +81,29 @@ public class CalculatorUI extends JFrame {
 
     // Classe interna para tratar os cliques nos botões
     private class ButtonClickListener implements ActionListener {
+        private final String command;
+
+        public ButtonClickListener(String command) {
+            this.command = command;
+        }
+
         @Override
         public void actionPerformed(ActionEvent e) {
-            String command = ((JButton) e.getSource()).getText(); // Texto do botão clicado
-
             if ("C".equals(command)) {
                 // Limpa o display
                 display.setText("");
-                isResultDisplayed = false; // Reseta o estado
             } else if ("=".equals(command)) {
-                // Calcula o resultado da expressão completa
+                // Calcula o resultado completo
                 try {
-                    String expression = display.getText(); // Obtém a expressão do display
-                    double result = evaluateExpression(expression); // Avalia a expressão
-                    display.setText(String.valueOf(result)); // Mostra o resultado
-                    isResultDisplayed = true; // Marca que o resultado foi exibido
+                    String result = handler.evaluate(display.getText());
+                    display.setText(result);
                 } catch (Exception ex) {
                     display.setText("Erro");
-                    isResultDisplayed = false; // Erro, reseta o estado
                 }
             } else {
-                // Se o resultado foi exibido e o botão clicado é um número, limpa o display
-                if (isResultDisplayed && Character.isDigit(command.charAt(0))) {
-                    display.setText(command); // Começa um novo cálculo com o número clicado
-                    isResultDisplayed = false;
-                } else {
-                    // Caso contrário, adiciona o texto ao display
-                    display.setText(display.getText() + command);
-                    isResultDisplayed = false;
-                }
+                // Adiciona o comando ao display
+                display.setText(display.getText() + command);
             }
-        }
-
-        // Método para avaliar a expressão usando pilhas
-        private double evaluateExpression(String expression) throws Exception {
-            return evaluatePostfix(infixToPostfix(expression));
-        }
-
-        // Converte a expressão infixa para postfix (notação polonesa reversa)
-        private String infixToPostfix(String infix) {
-            StringBuilder postfix = new StringBuilder();
-            Stack<Character> stack = new Stack<>();
-
-            for (char c : infix.toCharArray()) {
-                if (Character.isDigit(c) || c == '.') {
-                    postfix.append(c);
-                } else if (c == '(') {
-                    stack.push(c);
-                } else if (c == ')') {
-                    while (!stack.isEmpty() && stack.peek() != '(') {
-                        postfix.append(' ').append(stack.pop());
-                    }
-                    stack.pop();
-                } else if ("+-*/".indexOf(c) >= 0) {
-                    postfix.append(' ');
-                    while (!stack.isEmpty() && precedence(stack.peek()) >= precedence(c)) {
-                        postfix.append(stack.pop()).append(' ');
-                    }
-                    stack.push(c);
-                }
-            }
-            while (!stack.isEmpty()) {
-                postfix.append(' ').append(stack.pop());
-            }
-            return postfix.toString();
-        }
-
-        // Avalia a expressão em postfix
-        private double evaluatePostfix(String postfix) {
-            Stack<Double> stack = new Stack<>();
-            for (String token : postfix.split("\\s")) {
-                if (token.isEmpty()) continue;
-                if ("+-*/".contains(token)) {
-                    double b = stack.pop();
-                    double a = stack.pop();
-                    switch (token.charAt(0)) {
-                        case '+': stack.push(a + b); break;
-                        case '-': stack.push(a - b); break;
-                        case '*': stack.push(a * b); break;
-                        case '/': stack.push(a / b); break;
-                    }
-                } else {
-                    stack.push(Double.parseDouble(token));
-                }
-            }
-            return stack.pop();
-        }
-
-        // Define a precedência dos operadores
-        private int precedence(char op) {
-            if (op == '+' || op == '-') return 1;
-            if (op == '*' || op == '/') return 2;
-            return 0;
         }
     }
 }
